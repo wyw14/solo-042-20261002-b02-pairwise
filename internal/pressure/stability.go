@@ -79,3 +79,30 @@ func (m *Monitor) Evaluate(vesselID string) (Result, error) {
 		CheckedAt: m.now().UTC(),
 	}, nil
 }
+
+// EvaluateSince assesses the soak window using only samples observed at or
+// after since (the soak start), all from the same calibration generation, that
+// span at least minDuration. It does not accept samples accumulated before the
+// soak began.
+func (m *Monitor) EvaluateSince(vesselID string, since time.Time, minDuration time.Duration) (Result, error) {
+	m.mu.RLock()
+	window := m.windows[vesselID]
+	m.mu.RUnlock()
+	if window == nil {
+		return Result{}, errors.New("pressure window not found")
+	}
+	samples := window.Samples()
+	fresh := 0
+	for _, sample := range samples {
+		if sample.CalibrationEpoch == window.Epoch() && !sample.ObservedAt.Before(since) {
+			fresh++
+		}
+	}
+	return Result{
+		VesselID:  vesselID,
+		Epoch:     window.Epoch(),
+		Stable:    window.StableSince(since, minDuration),
+		Samples:   fresh,
+		CheckedAt: m.now().UTC(),
+	}, nil
+}

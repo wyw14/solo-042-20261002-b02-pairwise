@@ -155,7 +155,7 @@ func buildRuntime(cfg config, now func() time.Time) (*runtime, error) {
 		return nil, err
 	}
 	fillCoordinator.SetRetryService(retryService)
-	completion := fill.NewCompletionService(fillCoordinator, pressureMonitor, store, now)
+	completion := fill.NewCompletionService(fillCoordinator, pressureMonitor, policy, store, now)
 	aborts := fill.NewAbortService(fillCoordinator, now)
 	fillService, err := fill.NewService(fillCoordinator, completion, aborts, 2.1)
 	if err != nil {

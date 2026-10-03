@@ -79,6 +79,42 @@ func (w *Window) Stable() bool {
 	return maximum-minimum <= w.spread
 }
 
+// StableSince reports stability using only samples observed at or after since,
+// all from the window's current calibration generation. It requires the full
+// capacity of such samples, a value spread within the limit, and an observation
+// span (oldest to newest qualifying sample) of at least minDuration. Samples
+// collected before since therefore cannot satisfy the soak on their own.
+func (w *Window) StableSince(since time.Time, minDuration time.Duration) bool {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+	qualifying := make([]WindowSample, 0, len(w.samples))
+	for _, sample := range w.samples {
+		if sample.CalibrationEpoch != w.epoch {
+			continue
+		}
+		if sample.ObservedAt.Before(since) {
+			continue
+		}
+		qualifying = append(qualifying, sample)
+	}
+	if len(qualifying) < w.capacity {
+		return false
+	}
+	sort.Slice(qualifying, func(i, j int) bool {
+		return qualifying[i].ObservedAt.Before(qualifying[j].ObservedAt)
+	})
+	minimum, maximum := qualifying[0].Value, qualifying[0].Value
+	for _, sample := range qualifying[1:] {
+		minimum = minFloat(minimum, sample.Value)
+		maximum = maxFloat(maximum, sample.Value)
+	}
+	if maximum-minimum > w.spread {
+		return false
+	}
+	span := qualifying[len(qualifying)-1].ObservedAt.Sub(qualifying[0].ObservedAt)
+	return span >= minDuration
+}
+
 func (w *Window) Samples() []WindowSample {
 	w.mu.RLock()
 	defer w.mu.RUnlock()

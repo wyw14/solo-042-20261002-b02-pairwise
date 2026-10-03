@@ -36,6 +36,7 @@ type FillSession struct {
 	CircuitID     string     `json:"circuit_id"`
 	PlannedLiters float64    `json:"planned_liters"`
 	Failure       string     `json:"failure,omitempty"`
+	SoakStartedAt time.Time  `json:"soak_started_at,omitempty"`
 	CreatedAt     time.Time  `json:"created_at"`
 	UpdatedAt     time.Time  `json:"updated_at"`
 }

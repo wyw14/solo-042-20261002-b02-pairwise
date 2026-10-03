@@ -123,10 +123,12 @@ func (c *Coordinator) BeginSoak(sessionID uuid.UUID) (model.FillSession, error) 
 	if !ok {
 		return model.FillSession{}, errors.New("fill session not found")
 	}
-	next, err := session.Transition(model.FillSoaking, c.now())
+	now := c.now()
+	next, err := session.Transition(model.FillSoaking, now)
 	if err != nil {
 		return model.FillSession{}, err
 	}
+	next.SoakStartedAt = now.UTC()
 	c.sessions[sessionID] = next
 	return next, nil
 }

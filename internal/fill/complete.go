@@ -10,9 +10,12 @@ import (
 	"github.com/wyw14/cry-98/internal/pressure"
 )
 
+var ErrSoakNotVerified = errors.New("pressure soak window is not stable")
+
 type CompletionService struct {
 	coordinator *Coordinator
 	pressure    *pressure.Monitor
+	policy      pressure.Policy
 	journal     EventAppender
 	now         func() time.Time
 }
@@ -21,11 +24,11 @@ type EventAppender interface {
 	Append(model.Event) (model.Event, error)
 }
 
-func NewCompletionService(coordinator *Coordinator, pressureMonitor *pressure.Monitor, store EventAppender, now func() time.Time) *CompletionService {
+func NewCompletionService(coordinator *Coordinator, pressureMonitor *pressure.Monitor, policy pressure.Policy, store EventAppender, now func() time.Time) *CompletionService {
 	if now == nil {
 		now = time.Now
 	}
-	return &CompletionService{coordinator: coordinator, pressure: pressureMonitor, journal: store, now: now}
+	return &CompletionService{coordinator: coordinator, pressure: pressureMonitor, policy: policy, journal: store, now: now}
 }
 
 func (s *CompletionService) Complete(ctx context.Context, sessionID uuid.UUID) (model.FillSession, error) {
@@ -41,12 +44,19 @@ func (s *CompletionService) Complete(ctx context.Context, sessionID uuid.UUID) (
 	if session.State != model.FillSoaking {
 		return model.FillSession{}, errors.New("fill session is not soaking")
 	}
-	result, err := s.pressure.Evaluate(session.VesselID)
+	// Only samples observed after the soak began, from the same calibration
+	// generation, may verify it. Stable readings left over from before the
+	// fill (or a previous generation) must not close the valve or complete
+	// the session.
+	if session.SoakStartedAt.IsZero() {
+		return model.FillSession{}, errors.New("fill session soak start is unknown")
+	}
+	result, err := s.pressure.EvaluateSince(session.VesselID, session.SoakStartedAt, s.policy.MinimumDuration)
 	if err != nil {
 		return model.FillSession{}, err
 	}
 	if !result.Stable {
-		return model.FillSession{}, errors.New("pressure soak window is not stable")
+		return model.FillSession{}, ErrSoakNotVerified
 	}
 	event, err := model.NewEvent("fills", "fill.soak_verified", session.ID.String(), result, s.now())
 	if err != nil {
