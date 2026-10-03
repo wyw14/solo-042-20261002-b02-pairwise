@@ -41,7 +41,10 @@ func (s *CompletionService) Complete(ctx context.Context, sessionID uuid.UUID) (
 	if session.State != model.FillSoaking {
 		return model.FillSession{}, errors.New("fill session is not soaking")
 	}
-	result, err := s.pressure.Evaluate(session.VesselID)
+	// Only pressure samples gathered at or after the fill entered soaking, on
+	// the same calibration epoch, may verify completion. Stable readings left
+	// over from before/during refill must not close the valve.
+	result, err := s.pressure.Evaluate(session.VesselID, session.UpdatedAt)
 	if err != nil {
 		return model.FillSession{}, err
 	}

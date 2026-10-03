@@ -112,7 +112,7 @@ func buildRuntime(cfg config, now func() time.Time) (*runtime, error) {
 		return nil, err
 	}
 	for _, vesselID := range []string{"V-03", "V-07", "V-09", "V-12", "V-15", "V-18"} {
-		if err := pressureMonitor.AddVessel(vesselID, policy.RequiredSamples, policy.MaximumSpread); err != nil {
+		if err := pressureMonitor.AddVessel(vesselID, policy.RequiredSamples, policy.MaximumSpread, policy.MinimumDuration); err != nil {
 			return nil, err
 		}
 	}

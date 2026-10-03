@@ -29,8 +29,8 @@ func NewMonitor(now func() time.Time) *Monitor {
 	return &Monitor{windows: make(map[string]*Window), now: now}
 }
 
-func (m *Monitor) AddVessel(vesselID string, capacity int, spread float64) error {
-	window, err := NewWindow(vesselID, capacity, spread)
+func (m *Monitor) AddVessel(vesselID string, capacity int, spread float64, minimumDuration time.Duration) error {
+	window, err := NewWindow(vesselID, capacity, spread, minimumDuration)
 	if err != nil {
 		return err
 	}
@@ -64,7 +64,11 @@ func (m *Monitor) Add(sample model.Sample) error {
 	return nil
 }
 
-func (m *Monitor) Evaluate(vesselID string) (Result, error) {
+// Evaluate judges soak stability using only pressure samples observed at or
+// after soakStart that share the window's current calibration epoch. Samples
+// that accumulated before the fill entered soaking never count toward
+// completion.
+func (m *Monitor) Evaluate(vesselID string, soakStart time.Time) (Result, error) {
 	m.mu.RLock()
 	window := m.windows[vesselID]
 	m.mu.RUnlock()
@@ -74,8 +78,8 @@ func (m *Monitor) Evaluate(vesselID string) (Result, error) {
 	return Result{
 		VesselID:  vesselID,
 		Epoch:     window.Epoch(),
-		Stable:    window.Stable(),
-		Samples:   len(window.Samples()),
+		Stable:    window.StableSince(soakStart),
+		Samples:   len(window.SamplesSince(soakStart)),
 		CheckedAt: m.now().UTC(),
 	}, nil
 }

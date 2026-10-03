@@ -32,5 +32,5 @@ func (p Policy) NewWindow(vesselID string) (*Window, error) {
 	if err := p.Validate(); err != nil {
 		return nil, err
 	}
-	return NewWindow(vesselID, p.RequiredSamples, p.MaximumSpread)
+	return NewWindow(vesselID, p.RequiredSamples, p.MaximumSpread, p.MinimumDuration)
 }
